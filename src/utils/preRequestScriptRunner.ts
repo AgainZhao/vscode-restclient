@@ -100,6 +100,10 @@ export class PreRequestScriptRunner {
                 set: (name: string, value: unknown): void => {
                     variables.set(name, String(value));
                     ScriptVariableCache.set(name, value);
+                    bodyState.value = this.createTrackedBodyValue(
+                        this.resolveBodyVariables(bodyState.value, new Map([...baseVariables, ...variables])),
+                        bodyState,
+                    );
                 },
             },
         };
@@ -268,6 +272,41 @@ export class PreRequestScriptRunner {
         }
 
         return JSON.stringify(value);
+    }
+
+    /**
+     * Replaces variable placeholders in the script-visible request body after script variables change.
+     */
+    private static resolveBodyVariables(value: unknown, variables: Map<string, string>): unknown {
+        if (typeof value === 'string') {
+            return this.resolveStringVariables(value, variables);
+        }
+
+        if (Array.isArray(value)) {
+            value.forEach((item, index) => {
+                value[index] = this.resolveBodyVariables(item, variables);
+            });
+            return value;
+        }
+
+        if (value && typeof value === 'object') {
+            for (const key of Object.keys(value)) {
+                const record = value as Record<string, unknown>;
+                record[key] = this.resolveBodyVariables(record[key], variables);
+            }
+        }
+
+        return value;
+    }
+
+    /**
+     * Replaces {{name}} placeholders when the variable has already been resolved in this request.
+     */
+    private static resolveStringVariables(value: string, variables: Map<string, string>): string {
+        return value.replace(/\{{2}(.+?)\}{2}/g, (match, name: string) => {
+            const variableName = name.trim();
+            return variables.has(variableName) ? variables.get(variableName)! : match;
+        });
     }
 
     /**
