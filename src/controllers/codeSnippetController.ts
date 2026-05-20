@@ -10,6 +10,7 @@ import { trace } from "../utils/decorator";
 import { base64 } from '../utils/misc';
 import { Selector } from '../utils/selector';
 import { Telemetry } from '../utils/telemetry';
+import { VariableProcessor } from '../utils/variableProcessor';
 import { getCurrentTextDocument } from '../utils/workspaceUtility';
 import { CodeSnippetWebview } from '../views/codeSnippetWebview';
 
@@ -51,11 +52,12 @@ export class CodeSnippetController {
             return;
         }
 
-        const { text, metadatas } = selectedRequest;
+        const { text: rawText, metadatas, variables } = selectedRequest;
         const requestSettings = new RequestSettings(metadatas);
         const settings: IRestClientSettings = new RestClientSettings(requestSettings);
 
         // parse http request
+        const text = await VariableProcessor.processRawRequest(rawText, variables);
         const httpRequest = await RequestParserFactory.createRequestParser(text, settings).parseHttpRequest();
 
         const harHttpRequest = this.convertToHARHttpRequest(httpRequest);
@@ -123,11 +125,12 @@ export class CodeSnippetController {
             return;
         }
 
-        const { text, metadatas } = selectedRequest;
+        const { text: rawText, metadatas, variables } = selectedRequest;
         const requestSettings = new RequestSettings(metadatas);
         const settings: IRestClientSettings = new RestClientSettings(requestSettings);
 
         // parse http request
+        const text = await VariableProcessor.processRawRequest(rawText, variables);
         const httpRequest = await RequestParserFactory.createRequestParser(text, settings).parseHttpRequest();
 
         const harHttpRequest = this.convertToHARHttpRequest(httpRequest);

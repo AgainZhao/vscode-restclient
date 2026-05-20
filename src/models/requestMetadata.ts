@@ -21,6 +21,18 @@ export enum RequestMetadata {
      * Used to allow user to interactively input variables for this request
      */
     Prompt = 'prompt',
+
+    /**
+     * JavaScript file executed before request sending.
+     * The script can set dynamic variables and request header patches.
+     */
+    PreRequest = 'pre-request',
+
+    /**
+     * JavaScript file executed after receiving the response.
+     * The script can inspect the response and set variables for later requests.
+     */
+    PostResponse = 'post-response',
 }
 
 export function fromString(value: string): RequestMetadata | undefined {

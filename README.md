@@ -524,6 +524,58 @@ Content-Type: {{contentType}}
 
 ```
 
+#### Pre-request Scripts
+Pre-request scripts are JavaScript files that run before sending a request. Add `# @pre-request {scriptPath}` or `// @pre-request {scriptPath}` before the request. Relative paths are resolved from the current `.http` or `.rest` file.
+
+```http
+# @pre-request ./scripts/sign-request.js
+GET https://api.example.com/orders/{{orderId}}
+Authorization: Bearer {{token}}
+```
+
+The script runs with a small API:
+
+```javascript
+const crypto = require('crypto');
+const token = await variables.resolve('apiToken');
+const signature = crypto
+    .createHmac('sha256', token)
+    .update(`${request.method} ${request.url}`)
+    .digest('hex');
+
+variables.set('orderId', Date.now());
+request.headers.set('X-Signature', signature);
+```
+
+Use `variables.get(name)` to read prompt or script variables, `variables.set(name, value)` to define variables used by the final request, and `variables.resolve(name)` to resolve normal REST Client variables. Use `request.headers.get(name)`, `request.headers.set(name, value)`, and `request.headers.delete(name)` to inspect or change request headers. Only the Node.js `crypto` module is available through `require`.
+
+#### Post-response Scripts
+Post-response scripts are JavaScript files that run after a response is received. Add `# @post-response {scriptPath}` or `// @post-response {scriptPath}` before the request. Relative paths are resolved from the current `.http` or `.rest` file.
+
+```http
+# @post-response ./scripts/save-token.js
+POST https://api.example.com/login
+Content-Type: application/json
+
+{
+    "username": "demo",
+    "password": "secret"
+}
+```
+
+The script can inspect the request and response, and can set variables for later requests:
+
+```javascript
+if (response.statusCode !== 200) {
+    throw new Error(`Login failed: ${response.statusCode}`);
+}
+
+const body = response.json();
+variables.set('token', body.access_token);
+```
+
+After the script runs, later requests can use `{{token}}`. Use `response.body` for the raw response text, `response.json()` for JSON responses, and `response.headers.get(name)` to read response headers. The request is available as `request.method`, `request.url`, `request.body`, and `request.headers.get(name)`. Only the Node.js `crypto` module is available through `require`.
+
 #### Request Variables
 Request variables are similar to file variables in some aspects like scope and definition location. However, they have some obvious differences. The definition syntax of request variables is just like a single-line comment, and follows __`// @name requestName`__ or __`# @name requestName`__ just before the desired request url. You can think of request variable as attaching a *name metadata* to the underlying request, and this kind of requests can be called with **Named Request**, while normal requests can be called with **Anonymous Request**. Other requests can use `requestName` as an identifier to reference the expected part of the named request or its latest response. Notice that if you want to refer the response of a named request, you need to manually trigger the named request to retrieve its response first, otherwise the plain text of variable reference like `{{requestName.response.body.$.id}}` will be sent instead.
 
@@ -749,6 +801,8 @@ Name | Syntax    | Description
 note | `# @note` | Use for request confirmation, especially for critical request
 no-redirect | `# @no-redirect` | Don't follow the 3XX response as redirects
 no-cookie-jar | `# @no-cookie-jar` | Don't save cookies in the cookie jar
+pre-request | `# @pre-request ./script.js` | Run a JavaScript file before sending the request
+post-response | `# @post-response ./script.js` | Run a JavaScript file after receiving the response
 
 > All the above leading `#` can be replaced with `//`
 

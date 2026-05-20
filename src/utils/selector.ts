@@ -3,7 +3,6 @@ import { Position, Range, TextDocument, TextEditor, window } from 'vscode';
 import * as Constants from '../common/constants';
 import { fromString as ParseReqMetaKey, RequestMetadata } from '../models/requestMetadata';
 import { SelectedRequest } from '../models/SelectedRequest';
-import { VariableProcessor } from './variableProcessor';
 
 export interface RequestRangeOptions {
     ignoreCommentLine?: boolean;
@@ -71,12 +70,10 @@ export class Selector {
 
         selectedText = rawLines.slice(requestRange[0], requestRange[1] + 1).join(EOL);
 
-        // variables replacement
-        selectedText = await VariableProcessor.processRawRequest(selectedText, promptVariables);
-
         return {
             text: selectedText,
-            metadatas: metadatas
+            metadatas: metadatas,
+            variables: promptVariables,
         };
     }
 

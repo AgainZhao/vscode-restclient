@@ -6,10 +6,13 @@ import { RequestMetadata } from '../models/requestMetadata';
 import { RequestParserFactory } from '../models/requestParserFactory';
 import { trace } from "../utils/decorator";
 import { HttpClient } from '../utils/httpClient';
+import { PostResponseScriptRunner } from '../utils/postResponseScriptRunner';
+import { PreRequestExecutionResult, PreRequestScriptRunner } from '../utils/preRequestScriptRunner';
 import { RequestState, RequestStatusEntry } from '../utils/requestStatusBarEntry';
 import { RequestVariableCache } from "../utils/requestVariableCache";
 import { Selector } from '../utils/selector';
 import { UserDataManager } from '../utils/userDataManager';
+import { VariableProcessor } from '../utils/variableProcessor';
 import { getCurrentTextDocument } from '../utils/workspaceUtility';
 import { HttpResponseTextDocumentView } from '../views/httpResponseTextDocumentView';
 import { HttpResponseWebview } from '../views/httpResponseWebview';
@@ -43,7 +46,7 @@ export class RequestController {
             return;
         }
 
-        const { text, metadatas } = selectedRequest;
+        const { text: rawText, metadatas, variables } = selectedRequest;
         const name = metadatas.get(RequestMetadata.Name);
 
         if (metadatas.has(RequestMetadata.Note)) {
@@ -58,9 +61,45 @@ export class RequestController {
         const settings: IRestClientSettings = new RestClientSettings(requestSettings);
 
         // parse http request
-        const httpRequest = await RequestParserFactory.createRequestParser(text, settings).parseHttpRequest(name);
+        const resolvedVariables = new Map<string, string>(variables ?? []);
 
-        await this.runCore(httpRequest, settings, document);
+        let preRequestResult: PreRequestExecutionResult | undefined;
+
+        const preRequestScript = metadatas.get(RequestMetadata.PreRequest);
+
+        if (preRequestScript) {
+            const firstPassText = await VariableProcessor.processRawRequest(
+                rawText,
+                resolvedVariables,
+            );
+
+            preRequestResult = await PreRequestScriptRunner.run(
+                preRequestScript,
+                firstPassText,
+                settings,
+                resolvedVariables,
+                document.uri.fsPath,
+            );
+
+            for (const [name, value] of preRequestResult.variables) {
+                resolvedVariables.set(name, value);
+            }
+        }
+
+        const text = await VariableProcessor.processRawRequest(
+            rawText,
+            resolvedVariables,
+        );
+
+        const httpRequest = await RequestParserFactory
+            .createRequestParser(text, settings)
+            .parseHttpRequest(name);
+
+        if (preRequestResult) {
+            PreRequestScriptRunner.applyToRequest(httpRequest, preRequestResult);
+        }
+
+        await this.runCore(httpRequest, settings, document, metadatas.get(RequestMetadata.PostResponse));
     }
 
     @trace('Rerun Request')
@@ -89,7 +128,12 @@ export class RequestController {
         }
     }
 
-    private async runCore(httpRequest: HttpRequest, settings: IRestClientSettings, document?: TextDocument) {
+    private async runCore(
+        httpRequest: HttpRequest,
+        settings: IRestClientSettings,
+        document?: TextDocument,
+        postResponseScript?: string,
+    ) {
         // clear status bar
         this._requestStatusEntry.update({ state: RequestState.Pending });
 
@@ -104,6 +148,15 @@ export class RequestController {
             // check cancel
             if (httpRequest.isCancelled) {
                 return;
+            }
+
+            if (postResponseScript && document) {
+                await PostResponseScriptRunner.run(
+                    postResponseScript,
+                    httpRequest,
+                    response,
+                    document.uri.fsPath,
+                );
             }
 
             this._requestStatusEntry.update({ state: RequestState.Received, response });
