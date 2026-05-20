@@ -25,6 +25,13 @@ class Log {
         this.log(LogLevel.Error, message, data);
     }
 
+    /**
+     * Writes user script console output without filtering it by the configured log level.
+     */
+    public script(scope: string, message: string): void {
+        this._outputChannel.appendLine(`[Script - ${(new Date().toLocaleTimeString())}] ${scope}: ${message}`);
+    }
+
     public log(level: LogLevel, message: string, data?: any): void {
         if (level >= this._restClientSettings.logLevel) {
             this._outputChannel.appendLine(`[${LogLevel[level]} - ${(new Date().toLocaleTimeString())}] ${message}`);

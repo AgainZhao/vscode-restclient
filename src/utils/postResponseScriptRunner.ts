@@ -7,6 +7,7 @@ import { HttpRequest } from '../models/httpRequest';
 import { HttpResponse } from '../models/httpResponse';
 import { getHeader } from './misc';
 import { ScriptVariableCache } from './scriptVariableCache';
+import { createScriptConsole } from './scriptConsole';
 import { VariableProcessor } from './variableProcessor';
 
 /**
@@ -32,7 +33,7 @@ export class PostResponseScriptRunner {
             Buffer,
             URL,
             URLSearchParams,
-            console,
+            console: createScriptConsole('post-response'),
 
             require: (moduleName: string) => {
                 const normalizedModuleName = moduleName.startsWith('node:')

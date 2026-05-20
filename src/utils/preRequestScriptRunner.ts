@@ -10,6 +10,7 @@ import { RequestParserFactory } from '../models/requestParserFactory';
 import { MimeUtility } from './mimeUtility';
 import { getHeader, removeHeader } from './misc';
 import { ScriptVariableCache } from './scriptVariableCache';
+import { createScriptConsole } from './scriptConsole';
 import { VariableProcessor } from './variableProcessor';
 
 type HeaderPatch = {
@@ -63,7 +64,7 @@ export class PreRequestScriptRunner {
             Buffer,
             URL,
             URLSearchParams,
-            console,
+            console: createScriptConsole('pre-request'),
 
             require: (moduleName: string) => {
                 const normalizedModuleName = moduleName.startsWith('node:')
